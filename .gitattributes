@@ -1,0 +1,8 @@
+# Forzar finales de línea LF (Windows con core.autocrlf=true rompería los .sh y el Dockerfile)
+* text=auto eol=lf
+*.sh  text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.pcap binary
+*.png  binary
+*.pdf  binary

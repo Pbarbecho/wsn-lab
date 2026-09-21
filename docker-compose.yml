@@ -1,21 +1,58 @@
 # Laboratorio de Redes de Sensores Inalámbricos (WSN) - Contiki-NG / Cooja
 #
 # Servicios:
-#   cooja      -> imagen oficial contiker/contiki-ng + escritorio virtual VNC/noVNC (services/vnc/Dockerfile).
-#                 Cooja se ve en el navegador (http://localhost:6080) o con un cliente VNC (localhost:5901);
-#                 no hace falta servidor X11 en el host.
-#   mosquitto  -> broker MQTT. Comparte la pila de red del contenedor cooja para que
-#                 los motes simulados lo alcancen en fd00::1 a través del border router (tunslip6).
-#   nodered    -> panel/flow para visualizar los datos MQTT (http://localhost:1880)
+#   contiki-init -> se ejecuta una vez al arrancar: clona Contiki-NG (+ submódulos Cooja, etc.)
+#                   en el volumen "wsn-contiki-ng" y ajusta permisos. Sustituye al antiguo setup.sh.
+#   cooja        -> imagen oficial contiker/contiki-ng + escritorio virtual VNC/noVNC (services/vnc/Dockerfile).
+#                   Cooja se ve en el navegador (http://localhost:6080) o con un cliente VNC (localhost:5901);
+#                   no hace falta servidor X11 en el host.
+#   mosquitto    -> broker MQTT. Comparte la pila de red del contenedor cooja para que
+#                   los motes simulados lo alcancen en fd00::1 a través del border router (tunslip6).
+#   nodered      -> panel/flow para visualizar los datos MQTT (http://localhost:1880)
 #
-# Uso rápido:
-#   ./setup.sh                 # primera vez: clona Contiki-NG, descarga y construye las imágenes
-#   docker compose up -d
+# Uso (no hace falta ningún script previo):
+#   docker compose up -d       # la 1.ª vez clona Contiki-NG, descarga y construye las imágenes (~5-10 min)
 #   ./scripts/vnc-viewer.sh    # abre el visor en el navegador (http://localhost:6080)
 #   ./scripts/cooja-gui.sh     # lanza Cooja dentro del escritorio virtual
 #   ./scripts/shell.sh         # terminal dentro del contenedor
+#
+# Configuración opcional en .env (ver .env.example): LOCAL_UID/LOCAL_GID, VNC_*, CNG_TAG.
+
+name: wsn-lab
 
 services:
+  contiki-init:
+    image: alpine/git:latest
+    container_name: wsn-init
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        git config --global --add safe.directory '*'
+        git config --global core.autocrlf false
+        if [ -f /contiki-ng/.wsn-init-done ]; then
+          echo "[init] Contiki-NG ya está preparado ($$(git -C /contiki-ng describe --always --tags 2>/dev/null))"
+          exit 0
+        fi
+        if [ ! -d /contiki-ng/.git ]; then
+          echo "[init] Clonando Contiki-NG ($$CNG_TAG)..."
+          git clone --branch "$$CNG_TAG" https://github.com/contiki-ng/contiki-ng.git /contiki-ng
+        fi
+        echo "[init] Submódulos (Cooja, motelist, cc2538-bsl, mbedtls, micro-ecc)..."
+        git -C /contiki-ng submodule update --init --recursive \
+          tools/cooja tools/motelist tools/cc2538-bsl os/net/security/mbedtls os/net/security/micro-ecc
+        chown -R "$$LOCAL_UID:$$LOCAL_GID" /contiki-ng /gradle
+        touch /contiki-ng/.wsn-init-done
+        echo "[init] Listo."
+    environment:
+      - CNG_TAG=${CNG_TAG:-develop}
+      - LOCAL_UID=${LOCAL_UID:-1000}
+      - LOCAL_GID=${LOCAL_GID:-1000}
+    volumes:
+      - contiki-ng:/contiki-ng
+      - gradle-cache:/gradle
+    restart: "no"
+
   cooja:
     build:
       context: ./services/vnc
@@ -45,9 +82,12 @@ services:
       - JAVA_TOOL_OPTIONS=-Dawt.useSystemAAFontSettings=on
     volumes:
       - ./:/home/user/wsn-lab
-      - ./contiki-ng:/home/user/contiki-ng
-      - ./.cache/gradle:/home/user/.gradle
+      - contiki-ng:/home/user/contiki-ng      # volumen: rápido en Windows/macOS y sin problemas de CRLF
+      - gradle-cache:/home/user/.gradle
     working_dir: /home/user/wsn-lab
+    depends_on:
+      contiki-init:
+        condition: service_completed_successfully
     ports:
       - "6080:6080"   # noVNC: visor de Cooja en el navegador
       - "5901:5901"   # VNC nativo (RealVNC, TigerVNC, Remmina...)
@@ -86,3 +126,7 @@ services:
 
 volumes:
   mosquitto-data:
+  contiki-ng:
+    name: wsn-contiki-ng
+  gradle-cache:
+    name: wsn-gradle-cache

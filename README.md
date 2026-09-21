@@ -47,8 +47,7 @@ Mosquitto y Node-RED comparten la red del contenedor `cooja`, por eso los motes 
 ```bash
 git clone https://github.com/Pbarbecho/wsn-lab.git
 cd wsn-lab
-./setup.sh               # clona Contiki-NG, crea .env y construye las imágenes (una sola vez)
-docker compose up -d     # levanta cooja + mosquitto + node-red
+docker compose up -d     # 1.ª vez: clona Contiki-NG, descarga y construye las imágenes (~5-10 min)
 ./scripts/vnc-viewer.sh  # abre http://localhost:6080
 ./scripts/cooja-gui.sh   # lanza Cooja (la primera vez Gradle tarda 2-5 min)
 ```
@@ -60,18 +59,21 @@ docker compose up -d     # levanta cooja + mosquitto + node-red
 | Node-RED | <http://localhost:1880> |
 | Mosquitto (MQTT) | `localhost:1883` |
 
-Para fijar una versión de Contiki-NG: `CNG_TAG=release/v4.9 ./setup.sh`.
+No hace falta ningún script previo: el servicio `contiki-init` del `docker-compose.yml` clona Contiki-NG y sus submódulos (Cooja incluido) en un volumen de Docker la primera vez, y `cooja` espera a que termine. En los arranques siguientes no descarga nada. Puedes seguir el progreso con `docker compose logs -f contiki-init`.
+
+> **Windows:** usa Docker Desktop con WSL2 y clona el repo desde una terminal de Ubuntu (WSL) en `~/`, no en `/mnt/c/...`. Los scripts de `scripts/` son bash, así que no corren en PowerShell ni CMD.
 
 ### Configuración (`.env`)
 
-`setup.sh` crea `.env` a partir de tus datos; puedes partir también de [`.env.example`](.env.example).
+Todo tiene valores por defecto, así que `.env` es opcional. Si necesitas cambiar algo, copia [`.env.example`](.env.example) a `.env`.
 
 | Variable | Descripción | Valor por defecto |
 |---|---|---|
 | `VNC_GEOMETRY` | Resolución del escritorio virtual | `1600x900` |
 | `VNC_PASSWORD` | Contraseña VNC (vacío = sin contraseña) | vacío |
 | `COOJA_AUTOSTART` | `1` arranca Cooja con el contenedor | `0` |
-| `LOCAL_UID` / `LOCAL_GID` | Tu usuario del host, para que los archivos no queden como root | `1000` |
+| `LOCAL_UID` / `LOCAL_GID` | Tu usuario del host (`id -u`, `id -g` en Linux), para que los archivos no queden como root | `1000` |
+| `CNG_TAG` | Rama o etiqueta de Contiki-NG que se clona (p. ej. `release/v4.9`) | `develop` |
 
 > Si expones los puertos fuera de tu máquina, define `VNC_PASSWORD`.
 
@@ -112,9 +114,8 @@ cd practicas/p1-hello-sensor && make TARGET=cooja
 
 ```
 wsn-lab/
-├── docker-compose.yml            cooja + mosquitto + node-red
+├── docker-compose.yml            contiki-init + cooja + mosquitto + node-red
 ├── docker-compose.hardware.yml   override para hardware real (USB + Zigbee2MQTT)
-├── setup.sh                      preparación inicial
 ├── .env.example                  plantilla de configuración
 ├── scripts/                      shell, visor VNC, Cooja GUI/headless, tunslip6, Wireshark, gen_csc.py
 ├── services/
@@ -126,7 +127,7 @@ wsn-lab/
 └── resultados/                   logs y capturas generados por las simulaciones
 ```
 
-`contiki-ng/` y `.cache/` los crea `setup.sh` y no se versionan.
+Contiki-NG y la caché de Gradle viven en los volúmenes de Docker `wsn-contiki-ng` y `wsn-gradle-cache`, no en el repositorio. Dentro del contenedor están en `/home/user/contiki-ng` y `/home/user/.gradle`.
 
 ## Direcciones IPv6 en Cooja
 
@@ -161,6 +162,8 @@ Más detalles en [`practicas/p8-hardware/README.md`](practicas/p8-hardware/READM
 - **Pantalla pequeña o borrosa**: ajusta `VNC_GEOMETRY` en `.env` y en noVNC usa *Settings → Scaling mode: Remote resizing*.
 - **`tunslip6` falla con "Operation not permitted"**: añade `privileged: true` al servicio `cooja` en `docker-compose.yml`.
 - **Los motes no alcanzan `fd00::1`**: la simulación debe estar corriendo, con el plugin *Serial Socket (SERVER)* en el border router y `./scripts/connect-router.sh` activo.
+- **Actualizar o cambiar la versión de Contiki-NG**: `docker compose down`, luego `docker volume rm wsn-contiki-ng` y `docker compose up -d` (con `CNG_TAG` en `.env` si quieres otra versión).
+- **`contiki-init` falla**: la primera vez necesita Internet para clonar desde GitHub. Revisa `docker compose logs contiki-init`, corrige la conexión y vuelve a ejecutar `docker compose up -d`.
 - **Archivos creados como root**: revisa `LOCAL_UID`/`LOCAL_GID` en `.env` y recrea el contenedor.
 - **"Nothing to be done" al cambiar `MAKE_MAC`**: ejecuta `make TARGET=cooja clean` antes de recompilar.
 

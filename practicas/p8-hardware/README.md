@@ -30,7 +30,7 @@ p8-hardware/
 docker compose -f docker-compose.yml -f docker-compose.hardware.yml up -d
 ./scripts/shell.sh
 #   dentro del contenedor:
-make -C contiki-ng/examples/rpl-border-router TARGET=nrf BOARD=nrf52840/dongle border-router.upload PORT=/dev/ttyACM0
+make -C ~/contiki-ng/examples/rpl-border-router TARGET=nrf BOARD=nrf52840/dongle border-router.upload PORT=/dev/ttyACM0
 cd practicas/p6-coap-mqtt && make TARGET=nrf BOARD=nrf52840/dongle mqtt-node.upload PORT=/dev/ttyACM1
 #   en el host:
 ./scripts/connect-router-hw.sh            # tun0 = fd00::1; el nodo real publica en wsn/<id>/data

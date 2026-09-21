@@ -8,6 +8,8 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 # wireshark-common/install-setuid: dumpcap con setuid para que "user" (grupo wireshark)
 # pueda capturar en tun0 sin ser root.
+# rm -rf /home/user/.cache: apt corre como root con HOME=/home/user y deja ~/.cache (fontconfig)
+# con dueño root; eso impide que ccache cree ~/.cache/ccache y rompe "make TARGET=cooja".
 RUN echo "wireshark-common wireshark-common/install-setuid boolean true" | debconf-set-selections && \
     apt-get -qq update && \
     apt-get -qq -y --no-install-recommends install \
@@ -24,7 +26,8 @@ RUN echo "wireshark-common wireshark-common/install-setuid boolean true" | debco
       x11-utils \
       dbus-x11 > /dev/null && \
     usermod -aG wireshark user && \
-    apt-get -qq clean && rm -rf /var/lib/apt/lists/*
+    apt-get -qq clean && rm -rf /var/lib/apt/lists/* && \
+    rm -rf /home/user/.cache
 
 COPY --chmod=755 start-vnc.sh /usr/local/bin/start-vnc.sh
 COPY openbox-rc.xml /etc/xdg/openbox/rc.xml

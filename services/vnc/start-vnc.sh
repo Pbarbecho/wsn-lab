@@ -11,7 +11,12 @@ DISPLAY_NUM="${DISPLAY_NUM:-1}"
 VNC_PORT=$((5900 + DISPLAY_NUM))
 NOVNC_PORT="${NOVNC_PORT:-6080}"
 
-mkdir -p "$HOME/.vnc"
+mkdir -p "$HOME/.vnc" "$HOME/.cache"
+# ~/.cache debe pertenecer al usuario del laboratorio (ccache, matplotlib, fontconfig). Si este
+# script corre como root, openbox/fontconfig la crearían con dueño root y romperían "make TARGET=cooja".
+if [ "$(id -u)" = "0" ]; then
+  chown "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}" "$HOME/.cache" "$HOME/.vnc" 2>/dev/null || true
+fi
 rm -f "/tmp/.X${DISPLAY_NUM}-lock" "/tmp/.X11-unix/X${DISPLAY_NUM}"
 
 SECURITY=(-SecurityTypes None)

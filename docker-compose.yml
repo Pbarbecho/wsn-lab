@@ -57,6 +57,9 @@ services:
     build:
       context: ./services/vnc
     image: wsn-lab/cooja-vnc:latest
+    # contiker/contiki-ng solo se publica para amd64. En Mac Apple Silicon (arm64) corre emulada
+    # (active "Use Rosetta for x86_64/amd64 emulation" en Docker Desktop para mayor velocidad).
+    platform: linux/amd64
     container_name: wsn-cooja
     hostname: wsn-cooja
     # tunslip6 crea una interfaz TUN dentro del contenedor (práctica 5 en adelante)

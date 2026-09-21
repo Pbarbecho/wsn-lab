@@ -1,0 +1,45 @@
+# Laboratorio WSN - ajustes para macOS (Docker Desktop en Apple Silicon M1-M4 o Intel).
+# Se combina con docker-compose.yml (que tiene todo lo común):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d
+#
+# Para no escribir -f cada vez (y para que los scripts de scripts/ usen esta combinación),
+# ponga en .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.mac.yml
+#   COMPOSE_PATH_SEPARATOR=:
+#
+# Notas:
+#   - Active Rosetta: Docker Desktop > Settings > General > "Use Rosetta for x86_64/amd64 emulation".
+#   - Puerto serie en Mac: /dev/tty.usbmodemXXXX (nRF) o /dev/tty.usbserial-XXXX (ZBDongle). Liste con: ls /dev/tty.usb*
+#   - Docker Desktop NO pasa dispositivos USB al contenedor. Por eso aquí no se usa
+#     docker-compose.hardware.yml (es solo para Linux); el hardware real de la práctica 8
+#     se conecta con un puente serie<->TCP que corre en su máquina (scripts/serial-tcp-bridge.py):
+#       Ruta A (border router real):
+#         python3 scripts/serial-tcp-bridge.py /dev/tty.usbmodem1101 60002
+#         HOST=host.docker.internal PORT=60002 ./scripts/connect-router-hw.sh
+#       Ruta C (Zigbee, coordinador USB):
+#         python3 scripts/serial-tcp-bridge.py /dev/tty.usbserial-1410 6638
+#         docker compose --profile zigbee up -d        (con COMPOSE_FILE en .env)
+
+services:
+  cooja:
+    # contiker/contiki-ng solo se publica para linux/amd64: en ARM corre emulada.
+    platform: linux/amd64
+    ports:
+      - "8080:8080"   # frontend de Zigbee2MQTT (perfil zigbee; comparte la red de cooja)
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: wsn-zigbee2mqtt
+    profiles: ["zigbee"]
+    network_mode: "service:cooja"
+    depends_on:
+      - cooja
+      - mosquitto
+    environment:
+      - TZ=${TZ:-America/Guayaquil}
+      # El coordinador llega por TCP desde el puente serie del host (no hay USB en Docker Desktop)
+      - ZIGBEE2MQTT_CONFIG_SERIAL_PORT=tcp://host.docker.internal:${ZIGBEE_TCP_PORT:-6638}
+    volumes:
+      - ./services/zigbee2mqtt:/app/data
+    restart: unless-stopped

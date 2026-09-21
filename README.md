@@ -41,12 +41,14 @@ Mosquitto y Node-RED comparten la red del contenedor `cooja`, por eso los motes 
 - Docker Engine 24+ (o Docker Desktop) con `docker compose`.
 - Unos 3 GB de disco (imagen de Contiki-NG, código fuente y caché de Gradle).
 - Git.
+- **Mac con Apple Silicon (M1–M4):** la imagen de Contiki-NG solo existe para `amd64` y corre emulada. En Docker Desktop activa *Settings → General → Use Rosetta for x86_64/amd64 emulation on Apple Silicon* para que Cooja y la compilación vayan más rápido.
 
 ## Inicio rápido
 
 ```bash
 git clone https://github.com/Pbarbecho/wsn-lab.git
 cd wsn-lab
+cp .env.example .env     # Mac o Windows: descomenta en .env las líneas COMPOSE_FILE de tu sistema
 docker compose up -d     # 1.ª vez: clona Contiki-NG, descarga y construye las imágenes (~5-10 min)
 ./scripts/vnc-viewer.sh  # abre http://localhost:6080
 ./scripts/cooja-gui.sh   # lanza Cooja (la primera vez Gradle tarda 2-5 min)
@@ -58,6 +60,16 @@ docker compose up -d     # 1.ª vez: clona Contiki-NG, descarga y construye las 
 | Cooja (cliente VNC) | `localhost:5901` |
 | Node-RED | <http://localhost:1880> |
 | Mosquitto (MQTT) | `localhost:1883` |
+
+### Archivos por sistema operativo
+
+| Sistema | Archivos que se usan | Cómo elegirlo |
+|---|---|---|
+| Linux | `docker-compose.yml` (+ `docker-compose.hardware.yml` para USB en la práctica 8) | nada que hacer |
+| macOS | `docker-compose.yml` + [`docker-compose.mac.yml`](docker-compose.mac.yml) | en `.env`: `COMPOSE_FILE=docker-compose.yml:docker-compose.mac.yml` |
+| Windows (WSL2) | `docker-compose.yml` + [`docker-compose.windows.yml`](docker-compose.windows.yml) | en `.env`: `COMPOSE_FILE=docker-compose.yml:docker-compose.windows.yml` |
+
+Con `COMPOSE_FILE` en `.env`, `docker compose up -d` y todos los scripts de `scripts/` usan la combinación correcta sin escribir `-f`. Los archivos de Mac y Windows fijan la plataforma `amd64` y preparan la práctica 8 para Docker Desktop, que no pasa USB al contenedor. En esos sistemas el hardware se conecta con el puente serie↔TCP `scripts/serial-tcp-bridge.py` (requiere `pip install pyserial`).
 
 No hace falta ningún script previo: el servicio `contiki-init` del `docker-compose.yml` clona Contiki-NG y sus submódulos (Cooja incluido) en un volumen de Docker la primera vez, y `cooja` espera a que termine. En los arranques siguientes no descarga nada. Puedes seguir el progreso con `docker compose logs -f contiki-init`.
 
@@ -115,9 +127,12 @@ cd practicas/p1-hello-sensor && make TARGET=cooja
 ```
 wsn-lab/
 ├── docker-compose.yml            contiki-init + cooja + mosquitto + node-red
-├── docker-compose.hardware.yml   override para hardware real (USB + Zigbee2MQTT)
+├── docker-compose.mac.yml        ajustes para macOS (amd64/Rosetta, Zigbee por TCP)
+├── docker-compose.windows.yml    ajustes para Windows con WSL2
+├── docker-compose.hardware.yml   override para hardware real en Linux (USB + Zigbee2MQTT)
 ├── .env.example                  plantilla de configuración
-├── scripts/                      shell, visor VNC, Cooja GUI/headless, tunslip6, Wireshark, gen_csc.py
+├── scripts/                      shell, visor VNC, Cooja GUI/headless, tunslip6, Wireshark, gen_csc.py,
+│                                 serial-tcp-bridge.py (USB → TCP en Mac/Windows)
 ├── services/
 │   ├── vnc/                      Dockerfile del escritorio virtual (Xtigervnc + openbox + noVNC)
 │   ├── mosquitto/                configuración del broker
@@ -144,9 +159,22 @@ Hay una captura de ejemplo en [`practicas/p4-rpl-udp/ejemplo-p4-cadena.pcap`](pr
 
 ## Hardware real (práctica 8)
 
+**Linux** (USB directo al contenedor):
+
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.hardware.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.hardware.yml --profile zigbee up -d   # con Zigbee2MQTT
+```
+
+**Mac / Windows** (con `COMPOSE_FILE` en `.env`): el USB se expone por TCP desde tu máquina.
+
+```bash
+pip install pyserial
+python3 scripts/serial-tcp-bridge.py /dev/tty.usbmodem1101 60002    # Windows: python scripts\serial-tcp-bridge.py COM5 60002
+HOST=host.docker.internal PORT=60002 ./scripts/connect-router-hw.sh # border router real (ruta A)
+
+python3 scripts/serial-tcp-bridge.py /dev/tty.usbserial-1410 6638   # coordinador Zigbee (ruta C)
+docker compose --profile zigbee up -d
 ```
 
 - **Ruta A, Contiki-NG en placa**: nRF52840 dongle/DK o Seeed XIAO nRF54L15 como border router real (`./scripts/connect-router-hw.sh`). El paso de USB al contenedor solo funciona en Linux; en macOS y Windows expón el puerto serie por TCP con `socat` (ver el script).

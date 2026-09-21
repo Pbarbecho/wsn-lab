@@ -1,0 +1,48 @@
+# Laboratorio WSN - ajustes para Windows 10/11 (Docker Desktop con backend WSL2).
+# Se combina con docker-compose.yml (que tiene todo lo común):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
+#
+# Para no escribir -f cada vez (y para que los scripts de scripts/ usen esta combinación),
+# ponga en .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.windows.yml
+#   COMPOSE_PATH_SEPARATOR=:
+#
+# Notas:
+#   - Clone el repo DENTRO de WSL (terminal Ubuntu, en ~/), no en C:\ ni /mnt/c: compila mucho más rápido.
+#   - Ejecute los scripts de scripts/ desde la terminal de WSL (son bash; no corren en PowerShell/CMD).
+#   - Puerto serie en Windows: COM3, COM5... (Administrador de dispositivos > Puertos COM y LPT).
+#   - Docker Desktop NO pasa dispositivos USB al contenedor. Por eso aquí no se usa
+#     docker-compose.hardware.yml (es solo para Linux); el hardware real de la práctica 8
+#     se conecta con un puente serie<->TCP que corre en su máquina (scripts/serial-tcp-bridge.py):
+#       Ruta A (border router real):
+#         python scripts\serial-tcp-bridge.py COM5 60002   (PowerShell, en \\wsl$\Ubuntu\home\<usuario>\wsn-lab)
+#         HOST=host.docker.internal PORT=60002 ./scripts/connect-router-hw.sh
+#       Ruta C (Zigbee, coordinador USB):
+#         python scripts\serial-tcp-bridge.py COM6 6638         (PowerShell en Windows)
+#         docker compose --profile zigbee up -d        (con COMPOSE_FILE en .env)
+#     Si el contenedor no alcanza el puente, láncelo escuchando en todas las interfaces:
+#         python scripts\serial-tcp-bridge.py COM5 60002 115200 0.0.0.0
+
+services:
+  cooja:
+    # contiker/contiki-ng solo se publica para linux/amd64: en ARM corre emulada.
+    platform: linux/amd64
+    ports:
+      - "8080:8080"   # frontend de Zigbee2MQTT (perfil zigbee; comparte la red de cooja)
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: wsn-zigbee2mqtt
+    profiles: ["zigbee"]
+    network_mode: "service:cooja"
+    depends_on:
+      - cooja
+      - mosquitto
+    environment:
+      - TZ=${TZ:-America/Guayaquil}
+      # El coordinador llega por TCP desde el puente serie del host (no hay USB en Docker Desktop)
+      - ZIGBEE2MQTT_CONFIG_SERIAL_PORT=tcp://host.docker.internal:${ZIGBEE_TCP_PORT:-6638}
+    volumes:
+      - ./services/zigbee2mqtt:/app/data
+    restart: unless-stopped

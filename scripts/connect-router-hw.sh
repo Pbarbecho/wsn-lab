@@ -7,7 +7,8 @@
 #
 #   Windows/macOS (Docker Desktop no pasa USB): exponga el puerto serie del host por TCP y
 #   tunslip6 se conecta como cliente:
-#       host$ socat TCP-LISTEN:60002,reuseaddr,fork /dev/tty.usbmodem1101,raw,b115200,echo=0
+#       host$ python3 scripts/serial-tcp-bridge.py /dev/tty.usbmodem1101 60002   (Mac; Windows: COM5)
+#       (o bien: socat TCP-LISTEN:60002,reuseaddr,fork /dev/tty.usbmodem1101,raw,b115200,echo=0)
 #       (Windows/WSL2: usbipd-win para pasar el USB a WSL2 y usar la variante Linux)
 #       HOST=host.docker.internal PORT=60002 ./scripts/connect-router-hw.sh
 cd "$(dirname "$0")/.."

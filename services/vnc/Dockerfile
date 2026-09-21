@@ -2,7 +2,7 @@
 # + Wireshark/tshark/tcpdump para analizar las capturas .pcap de Cooja y del tun0.
 # Sustituye el reenvío X11: Cooja se dibuja en un escritorio virtual dentro del contenedor
 # y se ve desde http://localhost:6080 (noVNC) o con cualquier cliente VNC en localhost:5901.
-FROM contiker/contiki-ng:latest
+FROM --platform=linux/amd64 contiker/contiki-ng:latest
 
 USER root
 ENV DEBIAN_FRONTEND=noninteractive

@@ -1,0 +1,88 @@
+# Laboratorio de Redes de Sensores Inalámbricos (WSN) - Contiki-NG / Cooja
+#
+# Servicios:
+#   cooja      -> imagen oficial contiker/contiki-ng + escritorio virtual VNC/noVNC (services/vnc/Dockerfile).
+#                 Cooja se ve en el navegador (http://localhost:6080) o con un cliente VNC (localhost:5901);
+#                 no hace falta servidor X11 en el host.
+#   mosquitto  -> broker MQTT. Comparte la pila de red del contenedor cooja para que
+#                 los motes simulados lo alcancen en fd00::1 a través del border router (tunslip6).
+#   nodered    -> panel/flow para visualizar los datos MQTT (http://localhost:1880)
+#
+# Uso rápido:
+#   ./setup.sh                 # primera vez: clona Contiki-NG, descarga y construye las imágenes
+#   docker compose up -d
+#   ./scripts/vnc-viewer.sh    # abre el visor en el navegador (http://localhost:6080)
+#   ./scripts/cooja-gui.sh     # lanza Cooja dentro del escritorio virtual
+#   ./scripts/shell.sh         # terminal dentro del contenedor
+
+services:
+  cooja:
+    build:
+      context: ./services/vnc
+    image: wsn-lab/cooja-vnc:latest
+    container_name: wsn-cooja
+    hostname: wsn-cooja
+    # tunslip6 crea una interfaz TUN dentro del contenedor (práctica 5 en adelante)
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+      - net.ipv6.conf.default.disable_ipv6=0
+      - net.ipv6.conf.all.forwarding=1
+    environment:
+      # Escritorio virtual (Xtigervnc) en :1 -> VNC 5901, noVNC 6080
+      - DISPLAY=:1
+      - VNC_GEOMETRY=${VNC_GEOMETRY:-1600x900}
+      - VNC_PASSWORD=${VNC_PASSWORD:-}
+      - COOJA_AUTOSTART=${COOJA_AUTOSTART:-0}
+      # remap-user.sh (entrypoint de la imagen) cambia el uid/gid del usuario "user"
+      # para que los archivos creados en los volúmenes pertenezcan a tu usuario del host.
+      - LOCAL_UID=${LOCAL_UID:-1000}
+      - LOCAL_GID=${LOCAL_GID:-1000}
+      - GRADLE_USER_HOME=/home/user/.gradle
+      - JAVA_TOOL_OPTIONS=-Dawt.useSystemAAFontSettings=on
+    volumes:
+      - ./:/home/user/wsn-lab
+      - ./contiki-ng:/home/user/contiki-ng
+      - ./.cache/gradle:/home/user/.gradle
+    working_dir: /home/user/wsn-lab
+    ports:
+      - "6080:6080"   # noVNC: visor de Cooja en el navegador
+      - "5901:5901"   # VNC nativo (RealVNC, TigerVNC, Remmina...)
+      - "1883:1883"   # Mosquitto (comparte red con este contenedor)
+      - "1880:1880"   # Node-RED
+    stdin_open: true
+    tty: true
+    command: ["/usr/local/bin/start-vnc.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -e /tmp/.X11-unix/X1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: wsn-mosquitto
+    network_mode: "service:cooja"
+    depends_on:
+      - cooja
+    volumes:
+      - ./services/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    restart: unless-stopped
+
+  nodered:
+    image: nodered/node-red:latest
+    container_name: wsn-nodered
+    network_mode: "service:cooja"
+    depends_on:
+      - cooja
+      - mosquitto
+    volumes:
+      - ./services/nodered:/data
+    restart: unless-stopped
+
+volumes:
+  mosquitto-data:

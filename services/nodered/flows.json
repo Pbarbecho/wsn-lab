@@ -1,0 +1,245 @@
+[
+  {
+    "id": "wsn-broker",
+    "type": "mqtt-broker",
+    "name": "Mosquitto (laboratorio WSN)",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "nodered-wsn",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "wsn-tab",
+    "type": "tab",
+    "label": "WSN - Práctica 6",
+    "disabled": false
+  },
+  {
+    "id": "wsn-mqtt-in",
+    "type": "mqtt in",
+    "z": "wsn-tab",
+    "name": "wsn/#",
+    "topic": "wsn/#",
+    "qos": "0",
+    "datatype": "auto-detect",
+    "broker": "wsn-broker",
+    "x": 150,
+    "y": 120,
+    "wires": [
+      [
+        "wsn-debug",
+        "wsn-parse"
+      ]
+    ]
+  },
+  {
+    "id": "wsn-debug",
+    "type": "debug",
+    "z": "wsn-tab",
+    "name": "Mensajes crudos",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "x": 420,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "wsn-parse",
+    "type": "function",
+    "z": "wsn-tab",
+    "name": "Extraer temperatura",
+    "func": "// payload esperado: {\"id\":2,\"seq\":10,\"temp\":23.5,\"rssi\":-70}\nvar p = msg.payload;\nif (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) { return null; } }\nmsg.topic = 'nodo-' + p.id;\nmsg.payload = p.temp;\nreturn msg;",
+    "outputs": 1,
+    "x": 420,
+    "y": 160,
+    "wires": [
+      [
+        "wsn-temp-debug"
+      ]
+    ]
+  },
+  {
+    "id": "wsn-temp-debug",
+    "type": "debug",
+    "z": "wsn-tab",
+    "name": "Temperatura por nodo",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "x": 680,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "hw-tab",
+    "type": "tab",
+    "label": "Hardware real - Práctica 8",
+    "disabled": false
+  },
+  {
+    "id": "hw-mqtt-wsn",
+    "type": "mqtt in",
+    "z": "hw-tab",
+    "name": "wsn/+/data (simulados y reales)",
+    "topic": "wsn/+/data",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "wsn-broker",
+    "x": 190,
+    "y": 100,
+    "wires": [
+      [
+        "hw-norm"
+      ]
+    ]
+  },
+  {
+    "id": "hw-mqtt-z2m",
+    "type": "mqtt in",
+    "z": "hw-tab",
+    "name": "zigbee2mqtt/+ (Zigbee)",
+    "topic": "zigbee2mqtt/+",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "wsn-broker",
+    "x": 170,
+    "y": 200,
+    "wires": [
+      [
+        "hw-norm-z2m"
+      ]
+    ]
+  },
+  {
+    "id": "hw-norm",
+    "type": "function",
+    "z": "hw-tab",
+    "name": "Normalizar wsn/*",
+    "func": "// Une motes de Cooja (sin campo src), nodos ESP32 Wi-Fi (src=esp32) y LoRa (src=lora)\nvar p = msg.payload;\nif (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { return null; } }\nvar src = p.src || 'cooja';\nmsg.payload = { id: 'nodo-' + p.id, temp: Number(p.temp), rssi: p.rssi, seq: p.seq, src: src, ts: Date.now() };\nmsg.topic = msg.payload.id;\nreturn msg;",
+    "outputs": 1,
+    "x": 440,
+    "y": 100,
+    "wires": [
+      [
+        "hw-join"
+      ]
+    ]
+  },
+  {
+    "id": "hw-norm-z2m",
+    "type": "function",
+    "z": "hw-tab",
+    "name": "Normalizar zigbee2mqtt/*",
+    "func": "// Zigbee2MQTT publica p.ej. {temperature: 24.3, humidity: 51, linkquality: 120, battery: 97}\nvar p = msg.payload;\nif (typeof p !== 'object' || p.temperature === undefined) { return null; }\nvar dev = msg.topic.split('/')[1];\nmsg.payload = { id: 'zigbee-' + dev, temp: Number(p.temperature), lqi: p.linkquality, battery: p.battery, src: 'zigbee', ts: Date.now() };\nmsg.topic = msg.payload.id;\nreturn msg;",
+    "outputs": 1,
+    "x": 460,
+    "y": 200,
+    "wires": [
+      [
+        "hw-join"
+      ]
+    ]
+  },
+  {
+    "id": "hw-join",
+    "type": "function",
+    "z": "hw-tab",
+    "name": "Tabla de últimos valores",
+    "func": "// Guarda el último valor de cada nodo en el contexto de flujo y emite la tabla completa\nvar tabla = flow.get('tabla') || {};\ntabla[msg.payload.id] = msg.payload;\nflow.set('tabla', tabla);\nmsg.payload = tabla;\nreturn msg;",
+    "outputs": 1,
+    "x": 720,
+    "y": 150,
+    "wires": [
+      [
+        "hw-debug"
+      ]
+    ]
+  },
+  {
+    "id": "hw-debug",
+    "type": "debug",
+    "z": "hw-tab",
+    "name": "Simulados vs reales",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "x": 960,
+    "y": 150,
+    "wires": []
+  },
+  {
+    "id": "hw-inject",
+    "type": "inject",
+    "z": "hw-tab",
+    "name": "led=on al nodo 101 (ESP32)",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "once": false,
+    "topic": "wsn/101/cmd",
+    "payload": "led=on",
+    "payloadType": "str",
+    "x": 220,
+    "y": 320,
+    "wires": [
+      [
+        "hw-mqtt-out"
+      ]
+    ]
+  },
+  {
+    "id": "hw-inject-off",
+    "type": "inject",
+    "z": "hw-tab",
+    "name": "led=off al nodo 101 (ESP32)",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "once": false,
+    "topic": "wsn/101/cmd",
+    "payload": "led=off",
+    "payloadType": "str",
+    "x": 220,
+    "y": 370,
+    "wires": [
+      [
+        "hw-mqtt-out"
+      ]
+    ]
+  },
+  {
+    "id": "hw-mqtt-out",
+    "type": "mqtt out",
+    "z": "hw-tab",
+    "name": "wsn/+/cmd",
+    "topic": "",
+    "qos": "0",
+    "retain": "false",
+    "broker": "wsn-broker",
+    "x": 520,
+    "y": 345,
+    "wires": []
+  }
+]

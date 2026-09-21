@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="WSN-lab">
+    <item label="Cooja"><action name="Execute"><command>bash -lc "cd $HOME/contiki-ng/tools/cooja &amp;&amp; $HOME/.local/bin/cooja --args='--gui --contiki=$HOME/contiki-ng'"</command></action></item>
+    <item label="Wireshark"><action name="Execute"><command>wireshark</command></action></item>
+    <item label="Wireshark: capturar tun0"><action name="Execute"><command>wireshark -i tun0 -k</command></action></item>
+    <item label="Terminal (xterm)"><action name="Execute"><command>xterm -fa "DejaVu Sans Mono" -fs 10 -bg black -fg white -e bash -l</command></action></item>
+    <separator/>
+    <item label="Cerrar sesion X"><action name="Exit"/></item>
+  </menu>
+</openbox_menu>

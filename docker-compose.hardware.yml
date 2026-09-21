@@ -1,0 +1,37 @@
+# Práctica 8 - Hardware real. Superposición (override) sobre docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.hardware.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.hardware.yml --profile zigbee up -d
+#
+# Ruta A (Contiki-NG en nRF52840 dongle / XIAO nRF54L15): el border router real se conecta por
+#   USB al contenedor y tunslip6 crea tun0 igual que con Cooja. Solo Linux (Docker Desktop en
+#   Windows/macOS no pasa USB: use scripts/connect-router-hw.sh con HOST=host.docker.internal).
+# Ruta B (ESP32 por Wi-Fi + MQTT): no necesita nada de este archivo; el broker ya está
+#   publicado en el puerto 1883 del host.
+# Ruta C (Zigbee): servicio Zigbee2MQTT con un coordinador USB (perfil "zigbee").
+services:
+  cooja:
+    devices:
+      - ${BR_DEVICE:-/dev/ttyACM0}:/dev/ttyACM0      # border router real (serie USB CDC)
+      - /dev/bus/usb:/dev/bus/usb                    # nrfutil / OpenOCD para flashear desde el contenedor
+    group_add:
+      - dialout
+      - plugdev
+    ports:
+      - "8080:8080"   # frontend de Zigbee2MQTT (perfil zigbee; comparte la red de este contenedor)
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: wsn-zigbee2mqtt
+    profiles: ["zigbee"]
+    network_mode: "service:cooja"
+    depends_on:
+      - cooja
+      - mosquitto
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0  # coordinador Zigbee (SONOFF ZBDongle-E/P, etc.)
+    volumes:
+      - ./services/zigbee2mqtt:/app/data
+      - /run/udev:/run/udev:ro
+    environment:
+      - TZ=${TZ:-America/Guayaquil}
+    restart: unless-stopped

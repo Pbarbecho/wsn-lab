@@ -1,0 +1,19 @@
+# Zigbee2MQTT - configuración mínima para la práctica 8 (ruta C).
+# Publica cada dispositivo Zigbee en zigbee2mqtt/<nombre> del broker Mosquitto del laboratorio.
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://localhost:1883      # mismo espacio de red que wsn-cooja / wsn-mosquitto
+serial:
+  port: /dev/ttyUSB0
+  adapter: ember                     # SONOFF ZBDongle-E (EFR32). Para ZBDongle-P / CC2652: zstack
+frontend:
+  enabled: true
+  port: 8080                         # http://localhost:8080
+permit_join: true                    # déjelo en true solo mientras empareja los XIAO
+advanced:
+  channel: 15                        # lejos del canal 26 que usan las redes Contiki-NG del laboratorio
+  network_key: GENERATE
+  pan_id: GENERATE
+  log_level: info
+homeassistant:
+  enabled: false

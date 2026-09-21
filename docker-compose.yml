@@ -86,6 +86,9 @@ services:
     volumes:
       - ./:/home/user/wsn-lab
       - contiki-ng:/home/user/contiki-ng      # volumen: rápido en Windows/macOS y sin problemas de CRLF
+      # el mismo volumen, visible también en wsn-lab/contiki-ng: así funciona el CONTIKI = ../../contiki-ng
+      # de los Makefile de practicas/ (en su carpeta aparece solo una carpeta vacía, ignorada por git)
+      - contiki-ng:/home/user/wsn-lab/contiki-ng
       - gradle-cache:/home/user/.gradle
     working_dir: /home/user/wsn-lab
     depends_on:

@@ -1,4 +1,3 @@
-README.md
 .env
 *.env
 data/
@@ -6,3 +5,8 @@ volumes/
 logs/
 *.log
 .DS_Store
+README.old.md
+contiki-ng/
+.cache/
+resultados/*
+!resultados/.gitkeep
